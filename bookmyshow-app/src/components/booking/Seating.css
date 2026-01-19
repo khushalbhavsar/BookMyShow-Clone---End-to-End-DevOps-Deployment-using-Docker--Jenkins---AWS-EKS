@@ -1,0 +1,28 @@
+/* Seating component styles */
+.seating {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+}
+
+.seat {
+    width: 30px;
+    height: 30px;
+    margin: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.seat.available {
+    background-color: #4caf50;
+}
+
+.seat.selected {
+    background-color: #2196f3;
+}
+
+.seat.occupied {
+    background-color: #9e9e9e;
+    cursor: not-allowed;
+}
