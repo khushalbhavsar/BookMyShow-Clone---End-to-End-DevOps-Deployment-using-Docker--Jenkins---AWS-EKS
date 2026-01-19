@@ -1,4 +1,4 @@
-(with K8S Stage)
+// Jenkinsfile.deploy - Build and Deploy to AWS EKS Cluster (with K8S Stage)
 
 pipeline {
     agent any
@@ -10,29 +10,34 @@ pipeline {
 
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
-        DOCKER_IMAGE = 'kastrov/bms:latest'
-        EKS_CLUSTER_NAME = 'kastro-eks'
+        DOCKER_IMAGE = 'khushalbhavsar/bms'
+        DOCKER_TAG = "${DOCKER_IMAGE}:${BUILD_NUMBER}"
+        DOCKER_LATEST = "${DOCKER_IMAGE}:latest"
+        EKS_CLUSTER_NAME = 'bookmyshow-eks'
         AWS_REGION = 'us-east-1'
     }
 
     stages {
         stage('Clean Workspace') {
             steps {
+                echo 'Cleaning workspace...'
                 cleanWs()
             }
         }
 
         stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://github.com/KastroVKiran/Book-My-Show.git'
-                sh 'ls -la'  // Verify files after checkout
+                echo 'Checking out source code from Git...'
+                checkout scm
+                sh 'echo "Workspace contents:" && ls -la'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
+                echo 'Running SonarQube Analysis...'
                 withSonarQubeEnv('sonar-server') {
-                    sh ''' 
+                    sh '''
                     $SCANNER_HOME/bin/sonar-scanner \
                         -Dsonar.projectName=BMS \
                         -Dsonar.projectKey=BMS
@@ -43,6 +48,7 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
+                echo 'Waiting for SonarQube Quality Gate...'
                 script {
                     waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
                 }
@@ -51,22 +57,27 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh '''
-                cd bookmyshow-app
-                ls -la  # Verify package.json exists
-                if [ -f package.json ]; then
-                    rm -rf node_modules package-lock.json  # Remove old dependencies
-                    npm install  # Install fresh dependencies
-                else
-                    echo "Error: package.json not found in bookmyshow-app!"
-                    exit 1
-                fi
-                '''
+                echo 'Installing Node.js dependencies...'
+                dir('bookmyshow-app') {
+                    sh '''
+                    echo "Current directory: $(pwd)"
+                    ls -la
+                    if [ -f package.json ]; then
+                        echo "Found package.json, installing dependencies..."
+                        rm -rf node_modules package-lock.json
+                        npm install
+                    else
+                        echo "Error: package.json not found!"
+                        exit 1
+                    fi
+                    '''
+                }
             }
         }
 
         stage('OWASP FS Scan') {
             steps {
+                echo 'Running OWASP Dependency Check...'
                 dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
@@ -74,21 +85,27 @@ pipeline {
 
         stage('Trivy FS Scan') {
             steps {
-                sh 'trivy fs . > trivyfs.txt'
+                echo 'Running Trivy File System Scan...'
+                sh 'trivy fs --format table -o trivyfs.txt .'
             }
         }
 
         stage('Docker Build & Push') {
             steps {
+                echo 'Building and Pushing Docker Image...'
                 script {
                     withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
-                        sh ''' 
+                        sh """
                         echo "Building Docker image..."
-                        docker build --no-cache -t $DOCKER_IMAGE -f bookmyshow-app/Dockerfile bookmyshow-app
+                        docker build --no-cache -t ${DOCKER_TAG} -t ${DOCKER_LATEST} -f bookmyshow-app/Dockerfile bookmyshow-app
+
+                        echo "Scanning Docker image with Trivy..."
+                        trivy image --format table -o trivyimage.txt ${DOCKER_LATEST}
 
                         echo "Pushing Docker image to Docker Hub..."
-                        docker push $DOCKER_IMAGE
-                        '''
+                        docker push ${DOCKER_TAG}
+                        docker push ${DOCKER_LATEST}
+                        """
                     }
                 }
             }
@@ -96,39 +113,56 @@ pipeline {
 
         stage('Deploy to EKS Cluster') {
             steps {
+                echo 'Deploying application to AWS EKS Cluster...'
                 script {
-                    sh '''
+                    sh """
                     echo "Verifying AWS credentials..."
                     aws sts get-caller-identity
 
                     echo "Configuring kubectl for EKS cluster..."
-                    aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
+                    aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${AWS_REGION}
 
                     echo "Verifying kubeconfig..."
-                    kubectl config view
+                    kubectl config current-context
 
                     echo "Deploying application to EKS..."
-                    kubectl apply -f deployment.yml
-                    kubectl apply -f service.yml
+                    kubectl apply -f k8s/deployment.yml
+                    kubectl apply -f k8s/service.yml
+
+                    echo "Waiting for deployment to be ready..."
+                    kubectl rollout status deployment/bms-app --timeout=120s
 
                     echo "Verifying deployment..."
-                    kubectl get pods
-                    kubectl get svc
-                    '''
+                    kubectl get pods -l app=bms
+                    kubectl get svc bms-service
+                    """
                 }
             }
         }
     }
 
     post {
+        success {
+            echo "Build and EKS deployment successful!"
+        }
+        failure {
+            echo "Build or deployment failed!"
+        }
         always {
             emailext attachLog: true,
-                subject: "'${currentBuild.result}'",
-                body: "Project: ${env.JOB_NAME}<br/>" +
-                      "Build Number: ${env.BUILD_NUMBER}<br/>" +
-                      "URL: ${env.BUILD_URL}<br/>",
-                to: 'kastrokiran@gmail.com',
-                attachmentsPattern: 'trivyfs.txt'
+                subject: "EKS Deploy ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+                    <h2>Build Status: ${currentBuild.result}</h2>
+                    <p><strong>Project:</strong> ${env.JOB_NAME}</p>
+                    <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                    <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                    <p><strong>Docker Image:</strong> ${DOCKER_TAG}</p>
+                    <p><strong>EKS Cluster:</strong> ${EKS_CLUSTER_NAME}</p>
+                    <p><strong>AWS Region:</strong> ${AWS_REGION}</p>
+                """,
+                to: 'kushalbhavsar41@gmail.com',
+                attachmentsPattern: 'trivyfs.txt,trivyimage.txt',
+                mimeType: 'text/html'
         }
     }
 }

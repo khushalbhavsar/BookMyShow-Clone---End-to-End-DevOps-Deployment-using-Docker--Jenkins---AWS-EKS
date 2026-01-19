@@ -142,7 +142,7 @@ Execute the following commands separately:
 **(a) Create Cluster (5-10 minutes)**
 
 ```bash
-eksctl create cluster --name=kastro-eks \
+eksctl create cluster --name=bookmyshow-eks \
                       --region=us-east-1 \
                       --zones=us-east-1a,us-east-1b \
                       --version=1.30 \
@@ -154,7 +154,7 @@ eksctl create cluster --name=kastro-eks \
 ```bash
 eksctl utils associate-iam-oidc-provider \
     --region us-east-1 \
-    --cluster kastro-eks \
+    --cluster bookmyshow-eks \
     --approve
 ```
 
@@ -168,7 +168,7 @@ eksctl utils associate-iam-oidc-provider \
 > ⚠️ Replace `Kastro` with your PEM key name (without `.pem` extension)
 
 ```bash
-eksctl create nodegroup --cluster=kastro-eks \
+eksctl create nodegroup --cluster=bookmyshow-eks \
                        --region=us-east-1 \
                        --name=node2 \
                        --node-type=t3.medium \
@@ -611,7 +611,7 @@ Restart Jenkins and update kubeconfig:
 exit
 sudo systemctl restart jenkins
 sudo -su jenkins
-aws eks update-kubeconfig --name kastro-eks --region us-east-1
+aws eks update-kubeconfig --name bookmyshow-eks --region us-east-1
 ```
 
 ### Pipeline Script (With K8S)
@@ -628,7 +628,7 @@ pipeline {
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
         DOCKER_IMAGE = 'kastrov/bms:latest'
-        EKS_CLUSTER_NAME = 'kastro-eks'
+        EKS_CLUSTER_NAME = 'bookmyshow-eks'
         AWS_REGION = 'ap-northeast-1'
     }
 
