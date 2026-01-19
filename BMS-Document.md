@@ -165,7 +165,7 @@ eksctl utils associate-iam-oidc-provider \
 
 **(c) Create Node Group (5-10 minutes)**
 
-> ⚠️ Replace `Kastro` with your PEM key name (without `.pem` extension)
+> ⚠️ Replace `your-key-name` with your PEM key name (without `.pem` extension)
 
 ```bash
 eksctl create nodegroup --cluster=bookmyshow-eks \
@@ -177,7 +177,7 @@ eksctl create nodegroup --cluster=bookmyshow-eks \
                        --nodes-max=4 \
                        --node-volume-size=20 \
                        --ssh-access \
-                       --ssh-public-key=Kastro \
+                       --ssh-public-key=your-key-name \
                        --managed \
                        --asg-access \
                        --external-dns-access \
@@ -466,7 +466,7 @@ pipeline {
         }
         stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://github.com/KastroVKiran/Book-My-Show.git'
+                git branch: 'main', url: 'https://github.com/khushalbhavsar/Book-My-Show.git'
                 sh 'ls -la'
             }
         }
@@ -513,10 +513,10 @@ pipeline {
                     withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
                         sh ''' 
                         echo "Building Docker image..."
-                        docker build --no-cache -t kastrov/bms:latest -f bookmyshow-app/Dockerfile bookmyshow-app
+                        docker build --no-cache -t khushalbhavsar/bms:latest -f bookmyshow-app/Dockerfile bookmyshow-app
 
                         echo "Pushing Docker image to registry..."
-                        docker push kastrov/bms:latest
+                        docker push khushalbhavsar/bms:latest
                         '''
                     }
                 }
@@ -530,7 +530,7 @@ pipeline {
                 docker rm bms || true
 
                 echo "Running new container on port 3000..."
-                docker run -d --restart=always --name bms -p 3000:3000 kastrov/bms:latest
+                docker run -d --restart=always --name bms -p 3000:3000 khushalbhavsar/bms:latest
 
                 echo "Checking running containers..."
                 docker ps -a
@@ -549,7 +549,7 @@ pipeline {
                 body: "Project: ${env.JOB_NAME}<br/>" +
                       "Build Number: ${env.BUILD_NUMBER}<br/>" +
                       "URL: ${env.BUILD_URL}<br/>",
-                to: 'kastrokiran@gmail.com',
+                to: 'kushalbhavsar41@gmail.com',
                 attachmentsPattern: 'trivyfs.txt,trivyimage.txt'
         }
     }
@@ -627,7 +627,7 @@ pipeline {
 
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
-        DOCKER_IMAGE = 'kastrov/bms:latest'
+        DOCKER_IMAGE = 'khushalbhavsar/bms:latest'
         EKS_CLUSTER_NAME = 'bookmyshow-eks'
         AWS_REGION = 'ap-northeast-1'
     }
@@ -641,7 +641,7 @@ pipeline {
 
         stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://github.com/KastroVKiran/Book-My-Show.git'
+                git branch: 'main', url: 'https://github.com/khushalbhavsar/Book-My-Show.git'
                 sh 'ls -la'
             }
         }
@@ -737,7 +737,7 @@ pipeline {
                 body: "Project: ${env.JOB_NAME}<br/>" +
                       "Build Number: ${env.BUILD_NUMBER}<br/>" +
                       "URL: ${env.BUILD_URL}<br/>",
-                to: 'kastrokiran@gmail.com',
+                to: 'kushalbhavsar41@gmail.com',
                 attachmentsPattern: 'trivyfs.txt'
         }
     }

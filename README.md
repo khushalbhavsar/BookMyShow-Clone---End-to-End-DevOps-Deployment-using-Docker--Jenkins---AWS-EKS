@@ -117,7 +117,7 @@ Book-My-Show/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/KastroVKiran/Book-My-Show.git
+   git clone https://github.com/khushalbhavsar/Book-My-Show.git
    cd Book-My-Show
    ```
 
@@ -156,8 +156,8 @@ docker run -d --name bms -p 3000:3000 bms:latest
 ### Using Docker Hub Image
 
 ```bash
-docker pull kastrov/bms:latest
-docker run -d --name bms -p 3000:3000 kastrov/bms:latest
+docker pull khushalbhavsar/bms:latest
+docker run -d --name bms -p 3000:3000 khushalbhavsar/bms:latest
 ```
 
 ---
