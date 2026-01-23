@@ -10,7 +10,13 @@ A full-stack movie ticket booking application built with React.js, featuring a c
 
 ---
 
-## 📑 Table of Contents
+## � Project Workflow
+
+![Project Workflow](Docs/Project_Workflow.png)
+
+---
+
+## �📑 Table of Contents
 
 - [Features](#-features)
 - [Tech Stack](#-tech-stack)
