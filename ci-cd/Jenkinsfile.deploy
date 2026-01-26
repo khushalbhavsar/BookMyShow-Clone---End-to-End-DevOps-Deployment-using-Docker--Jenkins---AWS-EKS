@@ -103,7 +103,7 @@ pipeline {
             steps {
                 echo 'Building and Pushing Docker Image...'
                 script {
-                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                    withDockerRegistry(credentialsId: 'docker', url: 'https://index.docker.io/v1/') {
                         sh """
                         echo "Building Docker image..."
                         docker build --no-cache -t ${DOCKER_TAG} -t ${DOCKER_LATEST} -f bookmyshow-app/Dockerfile bookmyshow-app
