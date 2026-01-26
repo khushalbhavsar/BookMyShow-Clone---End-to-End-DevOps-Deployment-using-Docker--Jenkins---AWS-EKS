@@ -46,23 +46,12 @@ pipeline {
         }
 
         stage('Quality Gate') {
-            options {
-                timeout(time: 2, unit: 'MINUTES')  // Reduced timeout - skip if no webhook configured
-            }
             steps {
-                echo 'Waiting for SonarQube Quality Gate (timeout: 2 minutes)...'
-                script {
-                    try {
-                        def qg = waitForQualityGate(credentialsId: 'Sonar-token')
-                        echo "Quality Gate status: ${qg.status}"
-                        if (qg.status != 'OK') {
-                            echo "WARNING: Quality Gate failed but continuing build..."
-                        }
-                    } catch (Exception e) {
-                        echo "Quality Gate check timed out or failed: ${e.getMessage()}"
-                        echo "Continuing pipeline... (Configure SonarQube webhook for faster results)"
-                    }
-                }
+                echo 'Skipping Quality Gate wait (no webhook configured)...'
+                echo 'View SonarQube results at: http://35.172.134.150:9000/dashboard?id=BMS'
+                echo 'To enable Quality Gate checks, configure webhook in SonarQube:'
+                echo '  SonarQube -> Administration -> Webhooks -> Create'
+                echo '  URL: http://<jenkins-url>/sonarqube-webhook/'
             }
         }
 
@@ -160,18 +149,25 @@ pipeline {
             echo "Build or deployment failed!"
         }
         always {
-            emailext attachLog: true,
-                subject: "Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                    <h2>Build Status: ${currentBuild.result}</h2>
-                    <p><strong>Project:</strong> ${env.JOB_NAME}</p>
-                    <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
-                    <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                    <p><strong>Docker Image:</strong> ${DOCKER_TAG}</p>
-                """,
-                to: 'kushalbhavsar41@gmail.com',
-                attachmentsPattern: 'trivyfs.txt,trivyimage.txt',
-                mimeType: 'text/html'
+            script {
+                try {
+                    emailext attachLog: true,
+                        subject: "Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        body: """
+                            <h2>Build Status: ${currentBuild.result}</h2>
+                            <p><strong>Project:</strong> ${env.JOB_NAME}</p>
+                            <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                            <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                            <p><strong>Docker Image:</strong> ${DOCKER_TAG}</p>
+                        """,
+                        to: 'kushalbhavsar41@gmail.com',
+                        attachmentsPattern: 'trivyfs.txt,trivyimage.txt',
+                        mimeType: 'text/html'
+                } catch (Exception e) {
+                    echo "Email notification failed: ${e.getMessage()}"
+                    echo "Please configure SMTP settings in Jenkins: Manage Jenkins -> System -> E-mail Notification"
+                }
+            }
         }
     }
 }
