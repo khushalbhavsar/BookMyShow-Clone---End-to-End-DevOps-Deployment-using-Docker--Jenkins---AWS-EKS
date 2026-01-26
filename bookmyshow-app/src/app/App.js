@@ -1,7 +1,7 @@
 import "./App.css";
-import Footer from "./Routes/Footer";
-import Navbar from "./Routes/Navbar";
-import Router from "./Routes/Router";
+import Footer from "../components/common/Footer";
+import Navbar from "../components/common/Navbar";
+import Router from "../routes/Router";
 
 function App() {
   return (
