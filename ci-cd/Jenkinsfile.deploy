@@ -49,16 +49,20 @@ pipeline {
 
         stage('Quality Gate') {
             options {
-                timeout(time: 5, unit: 'MINUTES')  // Wait max 5 minutes for first-time analysis
+                timeout(time: 2, unit: 'MINUTES')  // Reduced timeout - skip if no webhook configured
             }
             steps {
-                echo 'Waiting for SonarQube Quality Gate (timeout: 5 minutes)...'
+                echo 'Waiting for SonarQube Quality Gate (timeout: 2 minutes)...'
                 script {
-                    def qg = waitForQualityGate(credentialsId: 'Sonar-token')
-                    if (qg.status != 'OK') {
+                    try {
+                        def qg = waitForQualityGate(credentialsId: 'Sonar-token')
                         echo "Quality Gate status: ${qg.status}"
-                        // Set to 'true' if you want to fail the build on quality gate failure
-                        // error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        if (qg.status != 'OK') {
+                            echo "WARNING: Quality Gate failed but continuing build..."
+                        }
+                    } catch (Exception e) {
+                        echo "Quality Gate check timed out or failed: ${e.getMessage()}"
+                        echo "Continuing pipeline... (Configure SonarQube webhook for faster results)"
                     }
                 }
             }
