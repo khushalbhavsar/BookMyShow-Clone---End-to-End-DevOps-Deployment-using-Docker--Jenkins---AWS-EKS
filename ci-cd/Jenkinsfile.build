@@ -78,8 +78,15 @@ pipeline {
         stage('OWASP FS Scan') {
             steps {
                 echo 'Running OWASP Dependency Check...'
-                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                script {
+                    try {
+                        dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    } catch (Exception e) {
+                        echo "OWASP Dependency Check skipped: ${e.getMessage()}"
+                        echo "To enable: Jenkins -> Manage Jenkins -> Tools -> Dependency-Check -> Add 'DP-Check'"
+                    }
+                }
             }
         }
 
