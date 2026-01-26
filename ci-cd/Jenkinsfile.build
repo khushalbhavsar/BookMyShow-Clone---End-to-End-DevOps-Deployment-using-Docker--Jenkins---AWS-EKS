@@ -38,7 +38,8 @@ pipeline {
                     sh '''
                     $SCANNER_HOME/bin/sonar-scanner \
                         -Dsonar.projectName=BMS \
-                        -Dsonar.projectKey=BMS
+                        -Dsonar.projectKey=BMS \
+                        -Dsonar.sources=bookmyshow-app/src
                     '''
                 }
             }
@@ -62,7 +63,7 @@ pipeline {
                     ls -la
                     if [ -f package.json ]; then
                         echo "Found package.json, installing dependencies..."
-                        rm -rf node_modules package-lock.json
+                        rm -rf node_modules
                         npm install
                     else
                         echo "Error: package.json not found!"
@@ -114,20 +115,26 @@ pipeline {
                 echo 'Deploying application to Docker Container...'
                 sh """
                 echo "Stopping and removing old container..."
-                docker stop bms || true
-                docker rm bms || true
+                docker stop bms 2>/dev/null || true
+                docker rm bms 2>/dev/null || true
 
                 echo "Running new container on port 3000..."
-                docker run -d --restart=always --name bms -p 3000:3000 ${DOCKER_LATEST}
+                docker run -d --restart=always --name bms -p 3000:3000 ${DOCKER_TAG}
 
                 echo "Waiting for container to start..."
                 sleep 10
 
-                echo "Checking container status..."
-                docker ps -a | grep bms
-
-                echo "Fetching container logs..."
-                docker logs bms
+                echo "Checking container health..."
+                if docker ps | grep -q bms; then
+                    echo "Container is running successfully!"
+                    docker ps -a | grep bms
+                    echo "Fetching container logs..."
+                    docker logs bms
+                else
+                    echo "Container failed to start!"
+                    docker logs bms
+                    exit 1
+                fi
                 """
             }
         }

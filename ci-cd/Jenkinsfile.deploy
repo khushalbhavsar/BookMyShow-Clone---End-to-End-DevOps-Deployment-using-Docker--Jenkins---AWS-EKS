@@ -40,7 +40,8 @@ pipeline {
                     sh '''
                     $SCANNER_HOME/bin/sonar-scanner \
                         -Dsonar.projectName=BMS \
-                        -Dsonar.projectKey=BMS
+                        -Dsonar.projectKey=BMS \
+                        -Dsonar.sources=bookmyshow-app/src
                     '''
                 }
             }
@@ -64,7 +65,7 @@ pipeline {
                     ls -la
                     if [ -f package.json ]; then
                         echo "Found package.json, installing dependencies..."
-                        rm -rf node_modules package-lock.json
+                        rm -rf node_modules
                         npm install
                     else
                         echo "Error: package.json not found!"
@@ -115,27 +116,32 @@ pipeline {
             steps {
                 echo 'Deploying application to AWS EKS Cluster...'
                 script {
-                    sh """
-                    echo "Verifying AWS credentials..."
-                    aws sts get-caller-identity
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
+                        sh """
+                        echo "Verifying AWS credentials..."
+                        aws sts get-caller-identity
 
-                    echo "Configuring kubectl for EKS cluster..."
-                    aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${AWS_REGION}
+                        echo "Configuring kubectl for EKS cluster..."
+                        aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${AWS_REGION}
 
-                    echo "Verifying kubeconfig..."
-                    kubectl config current-context
+                        echo "Verifying kubeconfig..."
+                        kubectl config current-context
 
-                    echo "Deploying application to EKS..."
-                    kubectl apply -f k8s/deployment.yml
-                    kubectl apply -f k8s/service.yml
+                        echo "Deploying application to EKS..."
+                        kubectl apply -f k8s/deployment.yml
+                        kubectl apply -f k8s/service.yml
 
-                    echo "Waiting for deployment to be ready..."
-                    kubectl rollout status deployment/bms-app --timeout=120s
+                        echo "Updating deployment with build-specific image tag..."
+                        kubectl set image deployment/bms-app bms-container=${DOCKER_TAG}
 
-                    echo "Verifying deployment..."
-                    kubectl get pods -l app=bms
-                    kubectl get svc bms-service
-                    """
+                        echo "Waiting for deployment to be ready..."
+                        kubectl rollout status deployment/bms-app --timeout=120s
+
+                        echo "Verifying deployment..."
+                        kubectl get pods -l app=bms
+                        kubectl get svc bms-service
+                        """
+                    }
                 }
             }
         }
