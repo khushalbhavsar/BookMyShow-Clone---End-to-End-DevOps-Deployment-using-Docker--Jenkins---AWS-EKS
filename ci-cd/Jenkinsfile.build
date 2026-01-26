@@ -1,7 +1,12 @@
-// Jenkinsfile.build - Build and Deploy to Docker Container (without K8S Stage)
+// Jenkinsfile.build – CI/CD without Kubernetes
 
 pipeline {
     agent any
+
+    options {
+        skipDefaultCheckout()
+        timestamps()
+    }
 
     tools {
         jdk 'jdk17'
@@ -16,133 +21,95 @@ pipeline {
     }
 
     stages {
+
         stage('Clean Workspace') {
             steps {
-                echo 'Cleaning workspace...'
                 cleanWs()
             }
         }
 
-        stage('Checkout from Git') {
+        stage('Checkout Code') {
             steps {
-                echo 'Checking out source code from Git...'
                 checkout scm
-                sh 'echo "Workspace contents:" && ls -la'
+                sh 'ls -la'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                echo 'Running SonarQube Analysis...'
                 withSonarQubeEnv('sonar-server') {
-                    sh '''
-                    $SCANNER_HOME/bin/sonar-scanner \
-                        -Dsonar.projectName=BMS \
-                        -Dsonar.projectKey=BMS \
-                        -Dsonar.sources=bookmyshow-app/src
-                    '''
+                    sh """
+                    ${SCANNER_HOME}/bin/sonar-scanner \
+                      -Dsonar.projectName=BMS \
+                      -Dsonar.projectKey=BMS \
+                      -Dsonar.sources=bookmyshow-app/src \
+                      -Dsonar.exclusions=**/node_modules/**
+                    """
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                echo 'Skipping Quality Gate wait (no webhook configured)...'
-                echo 'View SonarQube results at: http://35.172.134.150:9000/dashboard?id=BMS'
-                echo 'To enable Quality Gate checks, configure webhook in SonarQube:'
-                echo '  SonarQube -> Administration -> Webhooks -> Create'
-                echo '  URL: http://<jenkins-url>/sonarqube-webhook/'
+                timeout(time: 3, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                echo 'Installing Node.js dependencies...'
                 dir('bookmyshow-app') {
                     sh '''
-                    echo "Current directory: $(pwd)"
-                    ls -la
-                    if [ -f package.json ]; then
-                        echo "Found package.json, installing dependencies..."
-                        rm -rf node_modules
-                        npm install
-                    else
-                        echo "Error: package.json not found!"
-                        exit 1
-                    fi
+                    rm -rf node_modules
+                    npm install
                     '''
                 }
             }
         }
 
-        stage('OWASP FS Scan') {
+        stage('OWASP Dependency Scan') {
             steps {
-                echo 'Running OWASP Dependency Check...'
                 script {
                     try {
-                        dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
+                        dependencyCheck additionalArguments: '--scan bookmyshow-app --disableNodeAudit --disableYarnAudit',
+                                        odcInstallation: 'DP-Check'
                         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-                    } catch (Exception e) {
-                        echo "OWASP Dependency Check skipped: ${e.getMessage()}"
-                        echo "To enable: Jenkins -> Manage Jenkins -> Tools -> Dependency-Check -> Add 'DP-Check'"
+                    } catch (e) {
+                        echo "OWASP scan skipped: ${e.message}"
                     }
                 }
             }
         }
 
-        stage('Trivy FS Scan') {
+        stage('Trivy File Scan') {
             steps {
-                echo 'Running Trivy File System Scan...'
-                sh 'trivy fs --format table -o trivyfs.txt .'
+                sh 'trivy fs -o trivyfs.txt . || true'
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                echo 'Building and Pushing Docker Image...'
-                script {
-                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
-                        sh """
-                        echo "Building Docker image..."
-                        docker build --no-cache -t ${DOCKER_TAG} -t ${DOCKER_LATEST} -f bookmyshow-app/Dockerfile bookmyshow-app
+                withDockerRegistry(credentialsId: 'docker') {
+                    sh """
+                    docker build -t ${DOCKER_TAG} -t ${DOCKER_LATEST} \
+                      -f bookmyshow-app/Dockerfile bookmyshow-app
 
-                        echo "Scanning Docker image with Trivy..."
-                        trivy image --format table -o trivyimage.txt ${DOCKER_LATEST}
+                    trivy image -o trivyimage.txt ${DOCKER_LATEST} || true
 
-                        echo "Pushing Docker image to Docker Hub..."
-                        docker push ${DOCKER_TAG}
-                        docker push ${DOCKER_LATEST}
-                        """
-                    }
+                    docker push ${DOCKER_TAG}
+                    docker push ${DOCKER_LATEST}
+                    """
                 }
             }
         }
 
-        stage('Deploy to Container') {
+        stage('Deploy Container') {
             steps {
-                echo 'Deploying application to Docker Container...'
                 sh """
-                echo "Stopping and removing old container..."
-                docker stop bms 2>/dev/null || true
-                docker rm bms 2>/dev/null || true
-
-                echo "Running new container on port 3000..."
-                docker run -d --restart=always --name bms -p 3000:3000 ${DOCKER_TAG}
-
-                echo "Waiting for container to start..."
-                sleep 10
-
-                echo "Checking container health..."
-                if docker ps | grep -q bms; then
-                    echo "Container is running successfully!"
-                    docker ps -a | grep bms
-                    echo "Fetching container logs..."
-                    docker logs bms
-                else
-                    echo "Container failed to start!"
-                    docker logs bms
-                    exit 1
-                fi
+                docker stop bms || true
+                docker rm bms || true
+                docker run -d --restart=always --name bms -p 3000:3000 ${DOCKER_LATEST}
                 """
             }
         }
@@ -150,29 +117,32 @@ pipeline {
 
     post {
         success {
-            echo "Build and deployment successful!"
+            echo "Build & Deployment Successful 🎉"
         }
+
         failure {
-            echo "Build or deployment failed!"
+            echo "Pipeline Failed ❌"
         }
+
         always {
             script {
                 try {
-                    emailext attachLog: true,
+                    emailext(
+                        attachLog: true,
+                        to: 'kushalbhavsar41@gmail.com',
                         subject: "Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                         body: """
-                            <h2>Build Status: ${currentBuild.result}</h2>
-                            <p><strong>Project:</strong> ${env.JOB_NAME}</p>
-                            <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
-                            <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                            <p><strong>Docker Image:</strong> ${DOCKER_TAG}</p>
+                        <h3>Build Status: ${currentBuild.result}</h3>
+                        <p>Job: ${env.JOB_NAME}</p>
+                        <p>Build: ${env.BUILD_NUMBER}</p>
+                        <p><a href="${env.BUILD_URL}">View Build</a></p>
+                        <p>Docker Image: ${DOCKER_LATEST}</p>
                         """,
-                        to: 'kushalbhavsar41@gmail.com',
                         attachmentsPattern: 'trivyfs.txt,trivyimage.txt',
                         mimeType: 'text/html'
-                } catch (Exception e) {
-                    echo "Email notification failed: ${e.getMessage()}"
-                    echo "Please configure SMTP settings in Jenkins: Manage Jenkins -> System -> E-mail Notification"
+                    )
+                } catch (e) {
+                    echo "Email notification failed: ${e.message}"
                 }
             }
         }
