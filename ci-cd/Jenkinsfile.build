@@ -111,7 +111,7 @@ pipeline {
                 sh """
                 docker stop bms || true
                 docker rm bms || true
-                docker run -d --restart=always --name bms -p 3000:3000 ${DOCKER_LATEST}
+                docker run -d --restart=always --name bms -p 3000:80 ${DOCKER_LATEST}
                 """
             }
         }
