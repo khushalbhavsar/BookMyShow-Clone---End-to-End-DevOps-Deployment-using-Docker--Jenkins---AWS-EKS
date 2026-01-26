@@ -48,10 +48,18 @@ pipeline {
         }
 
         stage('Quality Gate') {
+            options {
+                timeout(time: 5, unit: 'MINUTES')  // Wait max 5 minutes for first-time analysis
+            }
             steps {
-                echo 'Waiting for SonarQube Quality Gate...'
+                echo 'Waiting for SonarQube Quality Gate (timeout: 5 minutes)...'
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                    def qg = waitForQualityGate(credentialsId: 'Sonar-token')
+                    if (qg.status != 'OK') {
+                        echo "Quality Gate status: ${qg.status}"
+                        // Set to 'true' if you want to fail the build on quality gate failure
+                        // error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                    }
                 }
             }
         }
