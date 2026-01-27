@@ -52,9 +52,8 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
-                    echo 'Skipping Quality Gate (no webhook configured)...'
-                    echo 'View results: http://35.172.134.150:9000/dashboard?id=BMS'
-                    echo 'To enable: Configure webhook in SonarQube -> Administration -> Webhooks'
+                    echo "Skipping Quality Gate (no webhook configured)..."
+                    echo "To enable: Configure webhook in SonarQube -> Administration -> Webhooks"
                 }
             }
         }
