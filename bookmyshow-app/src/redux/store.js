@@ -1,28 +1,17 @@
-import { applyMiddleware, combineReducers, compose, createStore } from "redux";
-import { reducer } from "./app/reducer";
-import { movieReducer } from "./data/reducer";
-import { cinemasReducer } from "./cinemas/cinemasReducer";
-import { bookingReducer } from "./booking_details/bookingReducer";
-import { foodReducer } from "./food/reducer";
-import { bookingDataReducer } from "./booking/bookingDataReducer";
+import { configureStore } from '@reduxjs/toolkit';
+import bookingReducer from './slices/bookingSlice';
+import cinemaReducer from './slices/cinemaSlice';
+import foodReducer from './slices/foodSlice';
+import userReducer from './slices/userSlice';
 
-const rootReducer = combineReducers({
-  app: reducer,
-  cinemas: cinemasReducer,
-  data: movieReducer,
-  booking_details: bookingReducer,
-  food: foodReducer,
-  after_payment: bookingDataReducer
-})
-const logger = store => (next) => (action) => {
-  return typeof action === "function"
-    ? action(store.dispatch, store.getState)
-    : next(action);
-}
+const store = configureStore({
+  reducer: {
+    booking: bookingReducer,
+    cinema: cinemaReducer,
+    food: foodReducer,
+    user: userReducer,
+  },
+  devTools: process.env.NODE_ENV !== 'production',
+});
 
-
-const composeEnhancers =
-  window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
-
-const store = createStore(rootReducer, composeEnhancers(applyMiddleware(logger)));
-export { store }
+export { store };
